@@ -118,6 +118,23 @@ test.describe('Game Listing and Navigation', () => {
     });
   });
 
+  test('should filter games by category and publisher combination', async ({ page }) => {
+    await test.step('Navigate to homepage', async () => {
+      await page.goto('/');
+      await expect(page.getByTestId('games-grid')).toBeVisible();
+    });
+
+    await test.step('Apply category and publisher filters', async () => {
+      await page.getByTestId('category-filter').selectOption({ label: 'Strategy' });
+      await page.getByTestId('publisher-filter').selectOption({ label: 'CodeForge Studios' });
+    });
+
+    await test.step('Verify only matching games remain visible', async () => {
+      await expect(page.getByRole('link', { name: /DevOps Dominion/i })).toBeVisible();
+      await expect(page.getByRole('link', { name: /Pipeline Conquest/i })).not.toBeVisible();
+    });
+  });
+
   test('should return a 404 page for a non-existent game', async ({ page }) => {
     let response: Response | null;
 
