@@ -1,7 +1,17 @@
-import { eq, asc } from 'drizzle-orm';
+/*
+ * Data-access helpers for the static game catalog.
+ * These queries power the homepage, detail pages, and filter options.
+ */
+
+import { eq, asc, and } from 'drizzle-orm';
 import type { Database } from './db';
 import { games, categories, publishers } from '../../db/schema';
 import type { Game } from '../types/game';
+
+export interface GameFilters {
+    categoryId?: number | null;
+    publisherId?: number | null;
+}
 
 const gameSelection = {
     id: games.id,
@@ -50,10 +60,63 @@ function baseGamesQuery(db: Database) {
         .leftJoin(publishers, eq(games.publisherId, publishers.id));
 }
 
-/** All games ordered by title. */
-export async function getAllGames(db: Database): Promise<Game[]> {
-    const rows = await baseGamesQuery(db).orderBy(asc(games.title));
+function applyGameFilters(query: ReturnType<typeof baseGamesQuery>, filters: GameFilters = {}) {
+    const clauses = [];
+
+    if (filters.categoryId !== undefined && filters.categoryId !== null) {
+        clauses.push(eq(games.categoryId, filters.categoryId));
+    }
+
+    if (filters.publisherId !== undefined && filters.publisherId !== null) {
+        clauses.push(eq(games.publisherId, filters.publisherId));
+    }
+
+    return clauses.length > 0 ? query.where(and(...clauses)) : query;
+}
+
+/**
+ * Fetch every game, optionally narrowed to the provided category and publisher filters.
+ *
+ * @param db - Injected database connection used to query the games table.
+ * @param filters - Optional filters to apply before ordering the catalog.
+ * @returns A list of game records ordered alphabetically by title.
+ */
+export async function getAllGames(db: Database, filters: GameFilters = {}): Promise<Game[]> {
+    const rows = await applyGameFilters(baseGamesQuery(db), filters).orderBy(asc(games.title));
     return rows.map(mapGame);
+}
+
+/**
+ * Fetch a filtered set of games for the current category and/or publisher selection.
+ *
+ * @param db - Injected database connection used to query the games table.
+ * @param filters - Optional category and publisher predicates.
+ * @returns Matching game rows ordered alphabetically by title.
+ */
+export async function getFilteredGames(db: Database, filters: GameFilters = {}): Promise<Game[]> {
+    return getAllGames(db, filters);
+}
+
+/**
+ * Fetch all games belonging to a specific category.
+ *
+ * @param db - Injected database connection used to query the games table.
+ * @param categoryId - Category identifier to match.
+ * @returns Matching game records ordered alphabetically by title.
+ */
+export async function getGamesByCategoryId(db: Database, categoryId: number): Promise<Game[]> {
+    return getAllGames(db, { categoryId });
+}
+
+/**
+ * Fetch all games belonging to a specific publisher.
+ *
+ * @param db - Injected database connection used to query the games table.
+ * @param publisherId - Publisher identifier to match.
+ * @returns Matching game records ordered alphabetically by title.
+ */
+export async function getGamesByPublisherId(db: Database, publisherId: number): Promise<Game[]> {
+    return getAllGames(db, { publisherId });
 }
 
 /** All game ids ordered by title. */
